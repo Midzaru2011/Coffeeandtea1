@@ -1,0 +1,59 @@
+name: Build and Push Docker Image with Semantic Versioning
+
+on:
+  push:
+    branches:
+      - master # или другая ветка, на которой вы хотите запускать сборку
+    tags:
+      - 'v*' # Дополнительно можно добавить триггер на Git tags (например, v1.0.0)
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Шаг 1: Выгрузка кода из репозитория
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Шаг 2: Чтение версии из файла VERSION
+      - name: Read version from file
+        id: version
+        run: echo "version=$(cat VERSION | tr -d '[:space:]')" >> $GITHUB_ENV
+
+      # Шаг 3: Проверка существования тега в Docker Hub
+      - name: Check if tag exists in Docker Hub
+        id: check-tag
+        run: |
+          DOCKER_HUB_REPO="midzaru2011/coffee-and-tea-app"
+          TAG="${{ env.version }}"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "https://hub.docker.com/v2/repositories/$DOCKER_HUB_REPO/tags/$TAG/")
+          if [ "$RESPONSE" == "200" ]; then
+            echo "Tag $TAG already exists in Docker Hub. Skipping build."
+            echo "tag_exists=true" >> $GITHUB_ENV
+          else
+            echo "Tag $TAG does not exist in Docker Hub. Proceeding with build."
+            echo "tag_exists=false" >> $GITHUB_ENV
+          fi
+
+      # Шаг 4: Прерывание, если тег уже существует
+      - name: Skip build if tag exists
+        if: env.tag_exists == 'true'
+        run: exit 0
+
+      # Шаг 3: Логин в Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # Шаг 4: Сборка и отправка образа
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            midzaru2011/coffee-and-tea-app:${{ env.version }}

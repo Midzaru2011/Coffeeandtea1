@@ -1,0 +1,9 @@
+# Локальный провайдер для чтения пароля с удаленного сервера
+data "external" "jenkins_password" {
+  program = ["bash", "${path.module}/fetch_jenkins_password.sh"]
+
+  query = {
+    ip_address = yandex_compute_instance.jenkins[0].network_interface[0].nat_ip_address
+    ssh_key    = "~/.ssh/id_rsa" # Укажите путь к вашему SSH-ключу
+  }
+}
